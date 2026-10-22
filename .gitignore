@@ -9,3 +9,5 @@ dist/
 
 # Virtual environments
 .venv
+
+server.log
