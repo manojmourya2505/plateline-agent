@@ -47,7 +47,7 @@ class ChatIn(BaseModel):
 
 
 class LookupIn(BaseModel):
-    plate: str = Field(..., min_length=4, max_length=12)
+    plate: str = Field(..., min_length=4, max_length=20)  # spaces allowed, e.g. MH 12 AB 1234
 
 
 class Deduction(BaseModel):
