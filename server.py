@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 load_dotenv(override=True)  # .env wins over any old key exported in the terminal
 
 from main import app as graph  # the Lane graph from main.py
-from tools import explain_offer, lookup_vehicle, read_document
+from tools import estimate_price, explain_offer, lookup_vehicle, read_document
 
 TOKEN = os.getenv("PLATELINE_API_TOKEN", "")
 
@@ -124,3 +124,25 @@ def offer(body: OfferIn, x_plateline_token: str | None = Header(default=None)) -
         "valuation_low": body.valuation_low,
         "valuation_high": body.valuation_high,
     })
+
+
+class ValuationIn(BaseModel):
+    make: str
+    model: str
+    year: int | None = None
+    fuel: str | None = None
+    km: int | None = None
+    condition: str = "Good"
+
+
+@api.post("/valuation")
+def valuation(body: ValuationIn, x_plateline_token: str | None = Header(default=None)) -> dict:
+    """Estimate a rupee range for a car from its model, year, km and condition. AI estimate, not live prices."""
+    check_token(x_plateline_token)
+    result = estimate_price.invoke({
+        "make": body.make, "model": body.model, "year": body.year,
+        "fuel": body.fuel, "km": body.km, "condition": body.condition,
+    })
+    if "error" in result:
+        raise HTTPException(status_code=502, detail=result["error"])
+    return result

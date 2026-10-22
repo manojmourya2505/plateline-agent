@@ -13,12 +13,12 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import MessagesState
 from langgraph.prebuilt import ToolNode
 
-from tools import explain_offer, get_selling_info, lookup_vehicle, read_document
+from tools import estimate_price, explain_offer, get_selling_info, lookup_vehicle, read_document
 
 load_dotenv(override=True)  # .env wins over any old key exported in the terminal
 
 # The tools the model is allowed to use.
-tools = [lookup_vehicle, get_selling_info, read_document, explain_offer]  # the model picks the right one
+tools = [lookup_vehicle, get_selling_info, read_document, explain_offer, estimate_price]  # the model picks the right one
 
 # The model. bind_tools() tells it which tools exist, so it can ask to use them.
 llm_with_tools = ChatOpenAI(
@@ -41,6 +41,8 @@ Rules:
 - If the user asks about a dealer's offer, call explain_offer with the offer details they give.
   Explain the net amount and each check in plain language. Give the facts and suggest questions
   to ask the dealer. Do not say whether the offer is good or bad, and do not give financial advice.
+- If the user asks what their car is worth, call estimate_price with the car's make, model, year, fuel, km and condition.
+  Say clearly that it is an AI estimate, not a live listing price.
 - If a tool has no answer, say so and suggest contacting Plateline support.
 - Never invent fees, rules or prices. Do not guess a price for the car.
 """

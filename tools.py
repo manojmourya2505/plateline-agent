@@ -178,3 +178,44 @@ def explain_offer(
         "net_after_deductions": net,
         "checks": checks,
     }
+
+
+ESTIMATE_PROMPT = """You estimate the resale price of a used car in India, in rupees, for a private sale.
+Use the make, model, registration year, fuel, kilometres driven and condition you are given.
+Higher kilometres and a worse condition lower the price. Older cars are worth less each year.
+Reference point: a 2015 Ford Fiesta Titanium diesel with 45,000 km in good condition sold for about Rs 2,90,000 to Rs 3,10,000.
+Use the reference only to calibrate. Indian used-car prices are in lakhs for cars this age, never in thousands.
+If the kilometres are unknown, assume average usage for the car's age and say so in the note.
+Return ONLY a JSON object with keys: low (integer rupees), high (integer rupees), note (one short sentence).
+Say it is an AI estimate, not a live listing price."""
+
+
+@tool
+def estimate_price(
+    make: str,
+    model: str,
+    year: int | None = None,
+    fuel: str | None = None,
+    km: int | None = None,
+    condition: str = "Good",
+) -> dict:
+    """
+    Estimate the resale price of a used car in India as a rupee range (low and high).
+    Use the make, model, registration year, fuel, kilometres driven and condition (Great, Good or Fair).
+    This is an AI estimate, not live market data.
+    """
+    llm = ChatOpenAI(model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"), temperature=0)
+    facts = (
+        f"Make: {make}. Model: {model}. Year: {year or 'unknown'}. Fuel: {fuel or 'unknown'}. "
+        f"Kilometres driven: {km if km is not None else 'unknown'}. Condition: {condition}."
+    )
+    reply = llm.invoke([("system", ESTIMATE_PROMPT), ("human", facts)])
+    text = reply.content
+    try:
+        data = json.loads(text[text.index("{"): text.rindex("}") + 1])
+        low, high = int(data["low"]), int(data["high"])
+    except (ValueError, KeyError, TypeError):
+        return {"error": "Could not estimate the price"}
+    if low <= 0 or high <= low:
+        return {"error": "Could not estimate the price"}
+    return {"low": low, "high": high, "note": str(data.get("note", "AI estimate"))}
