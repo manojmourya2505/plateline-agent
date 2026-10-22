@@ -11,11 +11,12 @@ Run it with:
 
 import hmac
 import os
+import re
 import tempfile
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel, Field
 
@@ -25,6 +26,7 @@ from main import app as graph  # the Lane graph from main.py
 from tools import estimate_price, explain_offer, lookup_vehicle, read_document
 
 TOKEN = os.getenv("PLATELINE_API_TOKEN", "")
+UPLOAD_DIR = Path(__file__).parent / "uploads"  # car photos stay on the Mac, never in Git
 
 api = FastAPI(title="Lane API", version="0.1.0")
 
@@ -150,3 +152,28 @@ def valuation(body: ValuationIn, x_plateline_token: str | None = Header(default=
     if "error" in result:
         raise HTTPException(status_code=502, detail=result["error"])
     return result
+
+
+@api.post("/photo")
+async def photo(
+    plate: str = Form(...),
+    slot: str = Form(...),
+    file: UploadFile = File(...),
+    x_plateline_token: str | None = Header(default=None),
+) -> dict:
+    """Save one car photo on the Mac, in uploads/<plate>/<slot>.jpg. Uploading again replaces it."""
+    check_token(x_plateline_token)
+    safe_plate = re.sub(r"[^A-Z0-9]", "", plate.upper())
+    safe_slot = re.sub(r"[^a-z0-9_]", "", slot.lower())
+    if not safe_plate or not safe_slot:
+        raise HTTPException(status_code=400, detail="Plate and slot are needed")
+    data = await file.read()
+    if not data or len(data) > 10_000_000:
+        raise HTTPException(status_code=413, detail="Photo is empty or larger than 10 MB")
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in {".jpg", ".jpeg", ".png", ".webp"}:
+        suffix = ".jpg"
+    folder = UPLOAD_DIR / safe_plate
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{safe_slot}{suffix}").write_bytes(data)
+    return {"ok": True, "saved": f"{safe_slot}{suffix}"}
