@@ -43,6 +43,7 @@ class Turn(BaseModel):
 class ChatIn(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
     history: list[Turn] = []  # earlier turns of this chat, oldest first
+    context: str | None = None  # facts about this seller's car and offers, from the app
 
 
 class LookupIn(BaseModel):
@@ -80,7 +81,10 @@ def chat(body: ChatIn, x_plateline_token: str | None = Header(default=None)) -> 
             messages.append(AIMessage(content=turn.content))
         else:
             messages.append(HumanMessage(content=turn.content))
-    messages.append(HumanMessage(content=body.message))
+    question = body.message
+    if body.context:
+        question = f"{body.context}\n\nSeller's question: {body.message}"
+    messages.append(HumanMessage(content=question))
 
     result = graph.invoke({"messages": messages})
     return {"reply": result["messages"][-1].content}
